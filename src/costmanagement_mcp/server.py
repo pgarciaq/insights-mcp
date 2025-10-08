@@ -116,15 +116,31 @@ mcp = InsightsMCP(
     - Include overhead costs, as defined later, in the per-namespace and per-cluster cost allocation.
 
     You know that an OpenShift cluster (any Kubernetes cluster) has a control plane and a worker plane. You know that 
-    users run their workloads in the worker place. You know that the control plane is not used to run workloads and Red Hat does not charge a subscription fee for the control plane (but there's an associated infrastructure cost, either in the cloud or on premise). You know that the worker plane is not fully utilized because users always leave some capacity unused for future growth, or to accommodate unexpected workload spikes (eg. due to disaster recovery procedures migrating workloads from a cluster to another one). Different users will leave different amounts of capacity unused, depending on their business needs and their risk tolerance. But all of the capacity has to be paid for: either the customer (IT department) pays for it, or the final user (typically, a line of business user) pays for it. By default, Cost Management calculates the cost of the workload (pod/namespace) and then it calculates the "overhead cost of running OpenShift", ie:
-    - Platform cost (cost of the control plane and any projects the user may have defined as "platform projects" in the Settings
-    - Worker unallocated capacity cost (as reported by the "worker unallocated" project, which is a fake project that Cost Management creates to represent the cost of the unallocated capacity in the worker plane).
-    - Storage unattributed cost (as reported by the "storage unallocated" project, which is a fake project that Cost Management creates to represent the cost of the unallocated storage in the cluster, eg. the cases where a Physical Volume is not fully utilized because the PVC is smaller than the PV).
-    - Network unattributed cost (as reported by the "network unallocated" project, which is a fake project that Cost Management creates to represent the cost of the network traffic that is not attributed to a pod/namespace since as of today, Cost Management does not have the ability to attribute network traffic to a pod/namespace, only to a node or cluster)
+    users run their workloads in the worker place. You know that the control plane is not used to run workloads and Red Hat 
+    does not charge a subscription fee for the control plane (but there's an associated infrastructure cost, either in the 
+    cloud or on premise). You know that the worker plane is not fully utilized because users always leave some capacity unused 
+    for future growth, or to accommodate unexpected workload spikes (eg. due to disaster recovery procedures migrating 
+    workloads from a cluster to another one). Different users will leave different amounts of capacity unused, depending on 
+    their business needs and their risk tolerance. But all of the capacity has to be paid for: either the customer (IT 
+    department) pays for it, or the final user (typically, a line of business user) pays for it. By default, Cost Management 
+    calculates the cost of the workload (pod/namespace) and then it calculates the "overhead cost of running OpenShift", ie:
+    - Platform cost (cost of the control plane and any projects the user may have defined as "platform projects" in the 
+      Settings in Cost Management.
+    - Worker unallocated capacity cost (as reported by the "worker unallocated" project, which is a fake project that Cost 
+      Management creates to represent the cost of the unallocated capacity in the worker plane).
+    - Storage unattributed cost (as reported by the "storage unallocated" project, which is a fake project that Cost Management 
+      creates to represent the cost of the unallocated storage in the cluster, eg. the cases where a Physical Volume is not 
+      fully utilized because the PVC is smaller than the PV).
+    - Network unattributed cost (as reported by the "network unallocated" project, which is a fake project that Cost Management 
+      creates to represent the cost of the network traffic that is not attributed to a pod/namespace since as of today, 
+      Cost Management does not have the ability to attribute network traffic to a pod/namespace, only to a node or cluster)
 
-    You know that users may define "platform projects" in the Settings. There are two main reason for a project to be a platform project:
+    You know that users may define "platform projects" in the Settings. There are two main reason for a project to be a 
+    platform project:
     - It's part of the control plane, ie. projects with the "openshift-" or "kube-" prefix.
-    - It's a cross-service that users provide to all the tenants using the same OpenShift cluster. These are typically single sign-on (SSO) microservices, PDF generator microservices, security tools, monitoring tools, etc. Anything that is usually used by all the tenants using the same OpenShift cluster should be a platform project.
+    - It's a cross-service that users provide to all the tenants using the same OpenShift cluster. These are typically single 
+      sign-on (SSO) microservices, PDF generator microservices, security tools, monitoring tools, etc. Anything that is usually 
+      used by all the tenants using the same OpenShift cluster should be a platform project.
 
     You know that in addition to costs, Cost Management also reports usage and capacity of the OpenShift cluster, OpenShift node and OpenShift namespace (CPU usage in percentage, core-hours and maximum number of cores ever seen in the period; memory usage in percentage, GiB-hours and maximum amount of memory ever seen in the period; storage usage in GiB; list of PVCs and sizes).
 
@@ -141,17 +157,11 @@ mcp = InsightsMCP(
     These URLs are available in the response of every tool in 'url', 'insights_url', and 'redhat_url' fields.
 
     Red Hat Lightspeed cost management requires correct RBAC permissions to be able to use the tools. Ensure that your
-    Service Account has at least these roles:
-    - Cost Cloud viewer
-    - Cost OpenShift viewer
-
-    If specific details about cost models and/or price lists on AWS, Azure, GCP and/orOpenShift cost models will be needed, the following role will also be needed:
-    - Cost Price List Viewer
-
-    If modifications to the AWS, Azure, GCP and/orOpenShift cost models will be needed, the following role will also be needed:
-    - Cost Price List Administrator
-
-    If you don't have these roles, please contact your organization administrator to get them.
+    Service Account has at least these roles: Cost Cloud viewer, Cost OpenShift viewer. If specific details about cost 
+    models and/or price lists on AWS, Azure, GCP and/orOpenShift cost models will be needed, the following role will also 
+    be needed: Cost Price List Viewer. If modifications to the AWS, Azure, GCP and/orOpenShift cost models will be needed, 
+    the following role will also be needed: Cost Price List Administrator. If you don't have these roles, please contact your 
+    organization administrator to get them.
     """,
 )
 
