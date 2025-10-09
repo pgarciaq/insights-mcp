@@ -10,16 +10,6 @@ from typing import Any
 
 from insights_mcp.mcp import InsightsMCP
 
-
-class CVETypes(Enum):
-    """Types of CVEs."""
-
-    FIXABLE = "fixed"
-    MANUALLY_FIXABLE = "manually_fixable"
-    UNFIXABLE = "unfixed"
-    SECURITY_RULE = "security_rule"
-
-
 mcp = InsightsMCP(
     name="Lightspeed cost management MCP Server",
     toolset_name="costmanagement",
@@ -174,6 +164,9 @@ mcp = InsightsMCP(
     'cost_management_optimizations' the tag value 'true', or the tag key 'insights_cost_management_optimizations' and the tag 
     value 'true'.
 
+    You know that Cost Management has a 90 day retention policy for cost and usage data. If the user does not provide a specific
+    time period, you should default to using the month-to-date data (ie. from the first day of the current month to the current day).
+
     [INSTRUCTION] When reporting a cost, always look for optimizations based on the past 7 days and show how many 
     recommendations are there for that namespace or cluster or node, and ask the user if they want to see the specifics. 
     Remember that rightsizing recommendations are only generated for containers running in OpenShift namespaces labeled with 
@@ -194,66 +187,63 @@ mcp = InsightsMCP(
 @mcp.tool(annotations={"readOnlyHint": True})
 async def get_openapi() -> dict[str, Any] | str:
     """Get Red Hat Lightspeed cost management OpenAPI specification in JSON format."""
-    return await mcp.insights_client.get("cost-management-openapi.json")
+    return await mcp.insights_client.get("openapi.json")
 
+# response["insights_url"] = f"{mcp.insights_client.insights_base_url}/{mcp.api_path}/reports/openshift/costs/?delta={delta}&filter[time_scope_units]={time_scope_units}&filter[time_scope_value]={time_scope_value}&filter[resolution]={resolution}&group_by[cluster]={id}&order_by={order_by}&offset={offset}&limit={limit}&start_date={start_date}&end_date={end_date}"
 @mcp.tool(annotations={"readOnlyHint": True})
-async def get_cves(  # pylint: disable=too-many-arguments,too-many-positional-arguments
-    filter_: str = "",
-    limit: int = 10,
+async def get_openshift_costs_by_cluster(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    delta_: str = "distributed_cost",
+    filter_time_scope_units: str = "month",
+    filter_time_scope_value: str = "-1",
+    filter_resolution: str = "monthly",
+    filter_cluster: str = "*",
+    limit: int = 0,
     offset: int = 0,
-    sort: str = "-public_date",
-    cvss_from: float = 0.0,
-    cvss_to: float = 10.0,
-    impact: str = "1,2,4,5,7",
-    rule_presence: str = "true,false",
-    known_exploit: str = "true,false",
-    advisory_available: str = "true",
-    affecting_host_type: str = "rpmdnf",
+    group_by: str = "cluster",
+    order_by: str = "desc",
+    start_date: str = "",
+    end_date: str = "",
 ) -> dict[str, Any] | str:
-    """Get list of CVEs affecting the account.
+    """Get cost per cluster for one or more clusters for a period of time (by default, month-to-date).
 
-    This provides an overview of vulnerabilities across your entire system inventory.
-    Use this endpoint to get an overview of which CVEs are affecting your account,
-    including some CVE metadata, how many systems are affected by each CVE, and more.
+    This returns the cluster name, cluster UUID, cluster cost variation (month-to-month) and cluster cost.
+
     For more info refer to OpenAPI spec
 
     Args:
-        filter: Full text filter/search for CVE and it's description text.
+        delta_: whether to include the overhead cost of running OpenShift in the cost or not. "distributed_cost" includes the overhead cost, "cost" does not.
+        filter_time_scope_units: time scope units. It can be "day" or "month".
+        filter_time_scope_value: time scope value. When "time_scope_units" is "day", then "time_scope_value" may the "-10" (10 days back), "-30" (30 days back), etc. When "time_scope_units" is "month", then "time_scope_value" may be "-1" for month-to-date or "-2" for the previous month.
+        filter_resolution: the resolution of the cost data. It can be "daily" or "monthly".
+        filter_cluster: the cluster(s) to get the cost for. It can be a single cluster UUID, name or a wildcard ("*" means all clusters).
         limit: Pagination - Maximum number of records per page.
         offset: Pagination - Offset of first record of paginated response.
-        sort: Attribute sorting. Use `-` prefix to sort in descending order.
-        cvss_from: Filter based on cvss score, starting from the value.
-        cvss_to: Filter based on cvss score, up to the value.
-        impact: Comma separated list of CVE Impact IDs. Example : 5,7.
-                impact mapping: (0, 'NotSet'), (1, 'None'), (2, 'Low'), (3, 'Medium'), (4, 'Moderate'),
-                                (5, 'Important'), (6, 'High'), (7, 'Critical')
-        rule_presence: Comma seprated string with bools. If true shows only CVEs with security rule associated,
-                       if false shows CVEs without rules. true, false shows all.
-        known_exploit: String of booleans (array of booleans), where true shows CVEs with known exploits,
-                       false shows CVEs without known exploits.
-        advisory_available: String of booleans (array of booleans), where true shows CVE-system pairs
-                            with available advisory, false shows CVE-system pairs without available advisory.
-        affecting_host_type: Comma separated string of values. Controls, whenever CVE has 1 or more
-                             affecting systems. Value "edge" returns CVEs with one or more vulnerable
-                             immutable systems, value "rpmdnf" returns CVEs with one or more vulnerable
-                             conventional systems. Value "none" returns CVEs not affecting systems of any kind.
-                             Allowed values: "edge", "rpmdnf", "none".
+        group_by: the field to group the cost by. It can be "cluster", "project", "node" or "tag". For cluster costs, we will always group by "cluster".
+        order_by: order based on the cluster cost ascending ("asc") or descending ("desc").
+        start_date: the start date of the period to get the cost for. It must be in the format "YYYY-MM-DD". Optional - only included if non-empty.
+        end_date: the end date of the period to get the cost for. It must be in the format "YYYY-MM-DD". Optional - only included if non-empty.
     """
+    params = {
+        "delta": delta_,
+        "filter[time_scope_units]": filter_time_scope_units,
+        "filter[time_scope_value]": filter_time_scope_value,
+        "filter[resolution]": filter_resolution,
+        "filter[cluster]": filter_cluster,
+        "limit": limit,
+        "offset": offset,
+        "group_by[cluster]": group_by,
+        "order_by": order_by,
+    }
+    
+    # Only include start_date and end_date if they are non-empty
+    if start_date:
+        params["start_date"] = start_date
+    if end_date:
+        params["end_date"] = end_date
+    
     response = await mcp.insights_client.get(
-        "vulnerabilities/cves",
-        params={
-            "filter": filter_,
-            "limit": limit,
-            "offset": offset,
-            "sort": sort,
-            "cvss_from": cvss_from,
-            "cvss_to": cvss_to,
-            "impact": impact,
-            "rule_presence": rule_presence,
-            "known_exploit": known_exploit,
-            "advisory_available": advisory_available,
-            "affecting_host_type": affecting_host_type,
-        },
+        "reports/openshift/costs",
+        params=params,
     )
     if isinstance(response, str):
         return response
@@ -267,9 +257,7 @@ async def get_cves(  # pylint: disable=too-many-arguments,too-many-positional-ar
         cve["attributes"]["systems_affected_url"] = url
         cve["attributes"]["redhat_url"] = f"https://access.redhat.com/security/cve/{cve['id']}"
 
-    response["insights_url"] = f"{mcp.insights_client.insights_base_url}/insights/vulnerability/vulnerabilities/cves"
     return response
-
 
 @mcp.tool(annotations={"readOnlyHint": True})
 async def get_cve(cve: str, advisory_available: str = "true") -> dict[str, Any] | str:
