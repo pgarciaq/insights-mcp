@@ -14,6 +14,7 @@ from mcp.types import ToolAnnotations
 
 from advisor_mcp.server import mcp_server as AdvisorMCP
 from content_sources_mcp.server import mcp as ContentSourcesMCP
+from costmanagement_mcp.server import mcp as CostManagementMCP
 from image_builder_mcp.server import mcp_server as ImageBuilderMCP
 from insights_mcp import __version__
 from insights_mcp.mcp import INSIGHTS_BASE_URL, InsightsMCP
@@ -31,6 +32,7 @@ MCPS: list[InsightsMCP] = [
     InventoryMCP,
     ContentSourcesMCP,
     RbacMCP,
+    CostManagementMCP,
 ]
 
 

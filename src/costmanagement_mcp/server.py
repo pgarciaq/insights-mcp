@@ -5,8 +5,10 @@ Provides cost analysis, showback, chargeback and resource optimization recommend
 """
 
 import uuid
+import logging
 from enum import Enum
 from typing import Any
+import json
 
 from insights_mcp.mcp import InsightsMCP
 
@@ -183,6 +185,8 @@ mcp = InsightsMCP(
     """,
 )
 
+mcp.logger = logging.getLogger("CostManagementMCP")
+
 
 @mcp.tool(annotations={"readOnlyHint": True})
 async def get_openapi() -> dict[str, Any] | str:
@@ -246,304 +250,299 @@ async def get_openshift_costs_by_cluster(  # pylint: disable=too-many-arguments,
         params=params,
     )
     if isinstance(response, str):
+        mcp.logger.info(f"Response: {json.dumps(response)}")
         return response
 
     if "data" not in response:
         return response
 
-    for cve in response["data"]:
-        url = f"{mcp.insights_client.insights_base_url}/insights/vulnerability/cves/{cve['id']}"
-        cve["url"] = url
-        cve["attributes"]["systems_affected_url"] = url
-        cve["attributes"]["redhat_url"] = f"https://access.redhat.com/security/cve/{cve['id']}"
-
     return response
 
-@mcp.tool(annotations={"readOnlyHint": True})
-async def get_cve(cve: str, advisory_available: str = "true") -> dict[str, Any] | str:
-    """Get details about specific CVE.
+# @mcp.tool(annotations={"readOnlyHint": True})
+# async def get_cve(cve: str, advisory_available: str = "true") -> dict[str, Any] | str:
+#     """Get details about specific CVE.
 
-    This endpoint returns the CVE identification number, description, scores and other metadata.
-    The metadata includes the description, CVSS 2/3 Score, CVSS 2/3 attack vector, severity, public date,
-    modified date, business risk, status, a URL to Red Hat web pages, a list of advisories remediating
-    the CVE, and information regarding known exploits for the CVE.
-    For more info refer to OpenAPI spec
+#     This endpoint returns the CVE identification number, description, scores and other metadata.
+#     The metadata includes the description, CVSS 2/3 Score, CVSS 2/3 attack vector, severity, public date,
+#     modified date, business risk, status, a URL to Red Hat web pages, a list of advisories remediating
+#     the CVE, and information regarding known exploits for the CVE.
+#     For more info refer to OpenAPI spec
 
-    Args:
-        cve: CVE identifier. Example : CVE-2016-0800
-        advisory_available: String of booleans (array of booleans), where true shows CVE-system pairs
-                            with available advisory, false shows CVE-system pairs without available advisory.
-    """
-    response = await mcp.insights_client.get(
-        f"cves/{cve}",
-        params={"advisory_available": advisory_available},
-    )
-    if isinstance(response, str):
-        return response
+#     Args:
+#         cve: CVE identifier. Example : CVE-2016-0800
+#         advisory_available: String of booleans (array of booleans), where true shows CVE-system pairs
+#                             with available advisory, false shows CVE-system pairs without available advisory.
+#     """
+#     response = await mcp.insights_client.get(
+#         f"cves/{cve}",
+#         params={"advisory_available": advisory_available},
+#     )
+#     if isinstance(response, str):
+#         return response
 
-    if "data" not in response:
-        return response
+#     if "data" not in response:
+#         return response
 
-    response["data"]["url"] = f"{mcp.insights_client.insights_base_url}/insights/vulnerability/cves/{cve}"
-    advisories_list = []
-    for advisory in response["data"]["attributes"]["advisories_list"]:
-        advisories_list.append(f"https://access.redhat.com/errata/{advisory}")
-    response["data"]["attributes"]["advisories_list"] = advisories_list
-    return response
-
-
-@mcp.tool(annotations={"readOnlyHint": True})
-async def get_cve_systems(  # pylint: disable=too-many-arguments
-    cve: str,
-    *,
-    filter_: str = "",
-    limit: int = 10,
-    offset: int = 0,
-    sort: str = "-updated",
-    system_uuid: uuid.UUID | None = None,
-) -> dict[str, Any] | str:
-    """Get list of systems affected by a given CVE.
-
-    This is a report of affected systems for a given CVE.
-    Use this tool to obtain list of all affected systems for a given CVE.
-    For more info refer to OpenAPI spec
-
-    Args:
-        cve: CVE identifier. Example : CVE-2016-0800 (Required)
-        filter_: Full text filter for the display name of system.
-        limit: Pagination - Maximum number of records per page.
-        offset: Pagination - Offset of first record of paginated response.
-        sort: Attribute sorting. Use `-` prefix to sort in descending order.
-        system_uuid: Filter based on Systems Inventory UUID.
-    """
-    response = await mcp.insights_client.get(
-        f"cves/{cve}/affected_systems",
-        params={
-            "filter": filter_,
-            "limit": limit,
-            "offset": offset,
-            "sort": sort,
-            "uuid": system_uuid,
-        },
-    )
-    if isinstance(response, str):
-        return response
-
-    if "data" not in response:
-        return response
-
-    for system in response["data"]:
-        system["url"] = f"{mcp.insights_client.insights_base_url}/insights/vulnerability/systems/{system['id']}"
-    response["insights_url"] = f"{mcp.insights_client.insights_base_url}/insights/vulnerability/cves/{cve}"
-    return response
+#     response["data"]["url"] = f"{mcp.insights_client.insights_base_url}/insights/vulnerability/cves/{cve}"
+#     advisories_list = []
+#     for advisory in response["data"]["attributes"]["advisories_list"]:
+#         advisories_list.append(f"https://access.redhat.com/errata/{advisory}")
+#     response["data"]["attributes"]["advisories_list"] = advisories_list
+#     return response
 
 
-@mcp.tool(annotations={"readOnlyHint": True})
-async def get_system_cves(
-    system_uuid: uuid.UUID,
-    *,
-    filter_: str = "",
-    limit: int = 10,
-    offset: int = 0,
-    sort: str = "-public_date",
-) -> dict[str, Any] | str:
-    """Get list of CVEs affecting a given system.
+# @mcp.tool(annotations={"readOnlyHint": True})
+# async def get_cve_systems(  # pylint: disable=too-many-arguments
+#     cve: str,
+#     *,
+#     filter_: str = "",
+#     limit: int = 10,
+#     offset: int = 0,
+#     sort: str = "-updated",
+#     system_uuid: uuid.UUID | None = None,
+# ) -> dict[str, Any] | str:
+#     """Get list of systems affected by a given CVE.
 
-    This is a report of CVEs affecting a given system.
-    Use this tool to obtain list of all CVEs affecting a given system.
-    For more info refer to OpenAPI spec
+#     This is a report of affected systems for a given CVE.
+#     Use this tool to obtain list of all affected systems for a given CVE.
+#     For more info refer to OpenAPI spec
 
-    Args:
-        system_uuid: Systems Inventory UUID. Example : 123e4567-e89b-12d3-a456-426614174000 (Required)
-        filter_: Full text filter for the CVE name.
-        limit: Pagination - Maximum number of records per page.
-        offset: Pagination - Offset of first record of paginated response.
-        sort: Attribute sorting. Use `-` prefix to sort in descending order.
-    """
-    response = await mcp.insights_client.get(
-        f"systems/{system_uuid}/cves",
-        params={
-            "filter": filter_,
-            "limit": limit,
-            "offset": offset,
-            "sort": sort,
-        },
-    )
-    if isinstance(response, str):
-        return response
+#     Args:
+#         cve: CVE identifier. Example : CVE-2016-0800 (Required)
+#         filter_: Full text filter for the display name of system.
+#         limit: Pagination - Maximum number of records per page.
+#         offset: Pagination - Offset of first record of paginated response.
+#         sort: Attribute sorting. Use `-` prefix to sort in descending order.
+#         system_uuid: Filter based on Systems Inventory UUID.
+#     """
+#     response = await mcp.insights_client.get(
+#         f"cves/{cve}/affected_systems",
+#         params={
+#             "filter": filter_,
+#             "limit": limit,
+#             "offset": offset,
+#             "sort": sort,
+#             "uuid": system_uuid,
+#         },
+#     )
+#     if isinstance(response, str):
+#         return response
 
-    if "data" not in response:
-        return response
+#     if "data" not in response:
+#         return response
 
-    for cve in response["data"]:
-        cve["url"] = f"{mcp.insights_client.insights_base_url}/insights/vulnerability/cves/{cve['id']}"
-    response["insights_url"] = f"{mcp.insights_client.insights_base_url}/insights/vulnerability/systems/{system_uuid}"
-    return response
-
-
-@mcp.tool(annotations={"readOnlyHint": True})
-async def get_systems(  # pylint: disable=too-many-arguments,too-many-positional-arguments
-    filter_: str = "",
-    limit: int = 10,
-    offset: int = 0,
-    sort: str = "-updated",
-    group_names: str = "",
-    rhel_versions: str = "",
-) -> dict[str, Any] | str:
-    """Get list of systems in Insights Vulnerability inventory.
-
-    List all systems registered in Insights Vulnerability service, including information about
-    their last check-in, system name, workspace name, RHEL version, and number of CVEs affecting them.
-    This tool shows both affected and not affected systems.
-    For more info refer to OpenAPI spec
-
-    Args:
-        filter_: Full text filter for the display name of system.
-        limit: Pagination - Maximum number of records per page.
-        offset: Pagination - Offset of first record of paginated response.
-        sort: Attribute sorting. Use `-` prefix to sort in descending order.
-        group_names: Filter based on workspace names. Comma separated list of workspace names.
-        rhel_versions: Filter based on RHEL versions. Comma separated list of RHEL versions.
-    """
-    params = {
-        "filter": filter_,
-        "limit": limit,
-        "offset": offset,
-        "sort": sort,
-    }
-    if group_names:
-        params["group_names"] = group_names
-    if rhel_versions:
-        params["rhel_versions"] = rhel_versions
-    response = await mcp.insights_client.get("systems", params=params)
-
-    if isinstance(response, str):
-        return response
-    if "data" not in response:
-        return response
-
-    for system in response["data"]:
-        system["url"] = f"{mcp.insights_client.insights_base_url}/insights/vulnerability/systems/{system['id']}"
-    response["insights_url"] = f"{mcp.insights_client.insights_base_url}/insights/vulnerability/systems"
-    return response
+#     for system in response["data"]:
+#         system["url"] = f"{mcp.insights_client.insights_base_url}/insights/vulnerability/systems/{system['id']}"
+#     response["insights_url"] = f"{mcp.insights_client.insights_base_url}/insights/vulnerability/cves/{cve}"
+#     return response
 
 
-# pylint: disable=too-many-locals
-@mcp.tool(annotations={"readOnlyHint": True})
-async def explain_cves(cves: list[str], system_uuid: uuid.UUID) -> dict[str, Any] | str:
-    """Explain why CVEs are affecting my environment.
+# @mcp.tool(annotations={"readOnlyHint": True})
+# async def get_system_cves(
+#     system_uuid: uuid.UUID,
+#     *,
+#     filter_: str = "",
+#     limit: int = 10,
+#     offset: int = 0,
+#     sort: str = "-public_date",
+# ) -> dict[str, Any] | str:
+#     """Get list of CVEs affecting a given system.
 
-    This endpoint returns a detailed explanation of why CVEs are affecting my environment.
-    It uses VMAAS to explain the CVEs, what packages are affected and why.
-    Alongside with the information how this CVE can be fixed.
-    To get the explanation, we need to get the system UUID from the inventory and list of CVEs.
-    'affected_packages' in 'vmaas' response is a list of packages that are affected by the CVE.
+#     This is a report of CVEs affecting a given system.
+#     Use this tool to obtain list of all CVEs affecting a given system.
+#     For more info refer to OpenAPI spec
 
-    To update affected packages, suggest to use Ansible Remediation Playbook via Remediations MCP tool.
+#     Args:
+#         system_uuid: Systems Inventory UUID. Example : 123e4567-e89b-12d3-a456-426614174000 (Required)
+#         filter_: Full text filter for the CVE name.
+#         limit: Pagination - Maximum number of records per page.
+#         offset: Pagination - Offset of first record of paginated response.
+#         sort: Attribute sorting. Use `-` prefix to sort in descending order.
+#     """
+#     response = await mcp.insights_client.get(
+#         f"systems/{system_uuid}/cves",
+#         params={
+#             "filter": filter_,
+#             "limit": limit,
+#             "offset": offset,
+#             "sort": sort,
+#         },
+#     )
+#     if isinstance(response, str):
+#         return response
 
-    Args:
-        cves: CVE identifiers. Example: CVE-2016-0800,CVE-2016-0801
-        system_uuid: System UUID. Example: 123e4567-e89b-12d3-a456-426614174000
-    """
-    explanations: dict[str, dict[str, Any]] = {
-        cve.upper(): {"details": {}, "is_affected": False, "rule": None, "reasons": []} for cve in cves
-    }
+#     if "data" not in response:
+#         return response
 
-    # get system profile from inventory
-    system_profile = await mcp.insights_client.client.make_request(
-        mcp.insights_client.client.get,
-        url=f"{mcp.insights_client.insights_base_url}/api/inventory/v1/hosts/{system_uuid}/system_profile",
-    )
-    if isinstance(system_profile, str) or "results" not in system_profile:
-        return system_profile
-
-    hosts = await mcp.insights_client.client.make_request(
-        mcp.insights_client.client.get,
-        url=f"{mcp.insights_client.insights_base_url}/api/inventory/v1/hosts/{system_uuid}",
-    )
-
-    if isinstance(hosts, str) or "results" not in hosts:
-        return hosts
-
-    system_name = hosts["results"][0]["display_name"]
-
-    for cve in cves:
-        # get cve details
-        cve_details = await mcp.insights_client.get(f"cves/{cve}")
-        explanations[cve]["details"] = cve_details
-        explanations[cve]["url"] = f"{mcp.insights_client.insights_base_url}/insights/vulnerability/cves/{cve}"
-
-        # check if system is affected by Security Rules
-        affected_systems = await mcp.insights_client.get(f"cves/{cve}/affected_systems?filter={system_name}")
-        if isinstance(affected_systems, str) or "data" not in affected_systems:
-            return affected_systems
-
-        if affected_systems["data"]:
-            if rule := affected_systems["data"][0].get("attributes", {}).get("rule"):
-                explanations[cve]["is_affected"] = True
-                explanations[cve]["rule"] = rule
-                explanations[cve]["reasons"].append("CVE found using Security Rules.")
-
-    vmaas_json = _prepare_vmaas_request(system_profile)
-    vmaas_response = await mcp.insights_client.client.make_request(
-        mcp.insights_client.client.post,
-        url=f"{mcp.insights_client.insights_base_url}/api/vmaas/v3/vulnerabilities",
-        json=vmaas_json,
-    )
-
-    if isinstance(vmaas_response, str) or "cve_list" not in vmaas_response:
-        return vmaas_response
-
-    response_parts = [
-        ("cve_list", CVETypes.FIXABLE),
-        ("manually_fixable_cve_list", CVETypes.MANUALLY_FIXABLE),
-        ("unpatched_cve_list", CVETypes.UNFIXABLE),
-    ]
-    for response_part, cve_type in response_parts:
-        for item in vmaas_response[response_part]:
-            if item["cve"] in cves:
-                _add_explanation(item["cve"], cve_type, item, explanations)
-
-    return explanations
+#     for cve in response["data"]:
+#         cve["url"] = f"{mcp.insights_client.insights_base_url}/insights/vulnerability/cves/{cve['id']}"
+#     response["insights_url"] = f"{mcp.insights_client.insights_base_url}/insights/vulnerability/systems/{system_uuid}"
+#     return response
 
 
-def _add_explanation(cve: str, type_: CVETypes, item: dict[str, Any], explanations: dict[str, dict[str, Any]]) -> None:
-    common_explanation = "There are packages affected by this CVE."
-    reasons = {
-        CVETypes.FIXABLE: f"{common_explanation} CVE can be fixed by applying the errata (advisories).",
-        CVETypes.MANUALLY_FIXABLE: f"{common_explanation} Manual steps are required to fix the CVE.",
-        CVETypes.UNFIXABLE: f"{common_explanation} CVE is not fixed by any errata (advisories).",
-        CVETypes.SECURITY_RULE: f"{common_explanation} CVE found using Security Rules.",
-    }
+# @mcp.tool(annotations={"readOnlyHint": True})
+# async def get_systems(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+#     filter_: str = "",
+#     limit: int = 10,
+#     offset: int = 0,
+#     sort: str = "-updated",
+#     group_names: str = "",
+#     rhel_versions: str = "",
+# ) -> dict[str, Any] | str:
+#     """Get list of systems in Insights Vulnerability inventory.
 
-    explanations[cve]["is_affected"] = True
-    if affected_packages := item.get("affected_packages"):
-        explanations[cve]["affected_packages"] = affected_packages
-    if errata := item.get("errata"):
-        explanations[cve]["errata"] = errata
-    if type_ == CVETypes.UNFIXABLE:
-        explanations[cve]["affected"] = item.get("affected")
-    if type_ == CVETypes.SECURITY_RULE:
-        explanations[cve]["rule"] = item.get("rule")
-    explanations[cve]["reasons"].append(reasons[type_])
+#     List all systems registered in Insights Vulnerability service, including information about
+#     their last check-in, system name, workspace name, RHEL version, and number of CVEs affecting them.
+#     This tool shows both affected and not affected systems.
+#     For more info refer to OpenAPI spec
+
+#     Args:
+#         filter_: Full text filter for the display name of system.
+#         limit: Pagination - Maximum number of records per page.
+#         offset: Pagination - Offset of first record of paginated response.
+#         sort: Attribute sorting. Use `-` prefix to sort in descending order.
+#         group_names: Filter based on workspace names. Comma separated list of workspace names.
+#         rhel_versions: Filter based on RHEL versions. Comma separated list of RHEL versions.
+#     """
+#     params = {
+#         "filter": filter_,
+#         "limit": limit,
+#         "offset": offset,
+#         "sort": sort,
+#     }
+#     if group_names:
+#         params["group_names"] = group_names
+#     if rhel_versions:
+#         params["rhel_versions"] = rhel_versions
+#     response = await mcp.insights_client.get("systems", params=params)
+
+#     if isinstance(response, str):
+#         return response
+#     if "data" not in response:
+#         return response
+
+#     for system in response["data"]:
+#         system["url"] = f"{mcp.insights_client.insights_base_url}/insights/vulnerability/systems/{system['id']}"
+#     response["insights_url"] = f"{mcp.insights_client.insights_base_url}/insights/vulnerability/systems"
+#     return response
 
 
-def _prepare_vmaas_request(system_profile: dict[str, Any]) -> dict[str, Any]:
-    """Prepare payload for VMAAS request."""
-    vmaas_json = {
-        "package_list": system_profile["results"][0]["system_profile"]["installed_packages"],
-        "repository_list": [
-            x["id"] for x in system_profile["results"][0]["system_profile"]["yum_repos"] if x["enabled"]
-        ],
-        # we might also need repository_paths for RHUI systems but it might not be available in the system_profile
-        "basearch": system_profile["results"][0]["system_profile"]["arch"],
-        "extended": True,
-    }
-    vmaas_modules = []
-    for module in system_profile["results"][0]["system_profile"]["dnf_modules"]:
-        vmaas_modules.append({"module_name": module["name"], "module_stream": module["stream"]})
-    if vmaas_modules:
-        vmaas_json["modules_list"] = vmaas_modules
-    if releasever := system_profile["results"][0].get("rhsm", {}).get("version"):
-        vmaas_json["releasever"] = releasever
-    return vmaas_json
+# # pylint: disable=too-many-locals
+# @mcp.tool(annotations={"readOnlyHint": True})
+# async def explain_cves(cves: list[str], system_uuid: uuid.UUID) -> dict[str, Any] | str:
+#     """Explain why CVEs are affecting my environment.
+
+#     This endpoint returns a detailed explanation of why CVEs are affecting my environment.
+#     It uses VMAAS to explain the CVEs, what packages are affected and why.
+#     Alongside with the information how this CVE can be fixed.
+#     To get the explanation, we need to get the system UUID from the inventory and list of CVEs.
+#     'affected_packages' in 'vmaas' response is a list of packages that are affected by the CVE.
+
+#     To update affected packages, suggest to use Ansible Remediation Playbook via Remediations MCP tool.
+
+#     Args:
+#         cves: CVE identifiers. Example: CVE-2016-0800,CVE-2016-0801
+#         system_uuid: System UUID. Example: 123e4567-e89b-12d3-a456-426614174000
+#     """
+#     explanations: dict[str, dict[str, Any]] = {
+#         cve.upper(): {"details": {}, "is_affected": False, "rule": None, "reasons": []} for cve in cves
+#     }
+
+#     # get system profile from inventory
+#     system_profile = await mcp.insights_client.client.make_request(
+#         mcp.insights_client.client.get,
+#         url=f"{mcp.insights_client.insights_base_url}/api/inventory/v1/hosts/{system_uuid}/system_profile",
+#     )
+#     if isinstance(system_profile, str) or "results" not in system_profile:
+#         return system_profile
+
+#     hosts = await mcp.insights_client.client.make_request(
+#         mcp.insights_client.client.get,
+#         url=f"{mcp.insights_client.insights_base_url}/api/inventory/v1/hosts/{system_uuid}",
+#     )
+
+#     if isinstance(hosts, str) or "results" not in hosts:
+#         return hosts
+
+#     system_name = hosts["results"][0]["display_name"]
+
+#     for cve in cves:
+#         # get cve details
+#         cve_details = await mcp.insights_client.get(f"cves/{cve}")
+#         explanations[cve]["details"] = cve_details
+#         explanations[cve]["url"] = f"{mcp.insights_client.insights_base_url}/insights/vulnerability/cves/{cve}"
+
+#         # check if system is affected by Security Rules
+#         affected_systems = await mcp.insights_client.get(f"cves/{cve}/affected_systems?filter={system_name}")
+#         if isinstance(affected_systems, str) or "data" not in affected_systems:
+#             return affected_systems
+
+#         if affected_systems["data"]:
+#             if rule := affected_systems["data"][0].get("attributes", {}).get("rule"):
+#                 explanations[cve]["is_affected"] = True
+#                 explanations[cve]["rule"] = rule
+#                 explanations[cve]["reasons"].append("CVE found using Security Rules.")
+
+#     vmaas_json = _prepare_vmaas_request(system_profile)
+#     vmaas_response = await mcp.insights_client.client.make_request(
+#         mcp.insights_client.client.post,
+#         url=f"{mcp.insights_client.insights_base_url}/api/vmaas/v3/vulnerabilities",
+#         json=vmaas_json,
+#     )
+
+#     if isinstance(vmaas_response, str) or "cve_list" not in vmaas_response:
+#         return vmaas_response
+
+#     response_parts = [
+#         ("cve_list", CVETypes.FIXABLE),
+#         ("manually_fixable_cve_list", CVETypes.MANUALLY_FIXABLE),
+#         ("unpatched_cve_list", CVETypes.UNFIXABLE),
+#     ]
+#     for response_part, cve_type in response_parts:
+#         for item in vmaas_response[response_part]:
+#             if item["cve"] in cves:
+#                 _add_explanation(item["cve"], cve_type, item, explanations)
+
+#     return explanations
+
+
+# def _add_explanation(cve: str, type_: CVETypes, item: dict[str, Any], explanations: dict[str, dict[str, Any]]) -> None:
+#     common_explanation = "There are packages affected by this CVE."
+#     reasons = {
+#         CVETypes.FIXABLE: f"{common_explanation} CVE can be fixed by applying the errata (advisories).",
+#         CVETypes.MANUALLY_FIXABLE: f"{common_explanation} Manual steps are required to fix the CVE.",
+#         CVETypes.UNFIXABLE: f"{common_explanation} CVE is not fixed by any errata (advisories).",
+#         CVETypes.SECURITY_RULE: f"{common_explanation} CVE found using Security Rules.",
+#     }
+
+#     explanations[cve]["is_affected"] = True
+#     if affected_packages := item.get("affected_packages"):
+#         explanations[cve]["affected_packages"] = affected_packages
+#     if errata := item.get("errata"):
+#         explanations[cve]["errata"] = errata
+#     if type_ == CVETypes.UNFIXABLE:
+#         explanations[cve]["affected"] = item.get("affected")
+#     if type_ == CVETypes.SECURITY_RULE:
+#         explanations[cve]["rule"] = item.get("rule")
+#     explanations[cve]["reasons"].append(reasons[type_])
+
+
+# def _prepare_vmaas_request(system_profile: dict[str, Any]) -> dict[str, Any]:
+#     """Prepare payload for VMAAS request."""
+#     vmaas_json = {
+#         "package_list": system_profile["results"][0]["system_profile"]["installed_packages"],
+#         "repository_list": [
+#             x["id"] for x in system_profile["results"][0]["system_profile"]["yum_repos"] if x["enabled"]
+#         ],
+#         # we might also need repository_paths for RHUI systems but it might not be available in the system_profile
+#         "basearch": system_profile["results"][0]["system_profile"]["arch"],
+#         "extended": True,
+#     }
+#     vmaas_modules = []
+#     for module in system_profile["results"][0]["system_profile"]["dnf_modules"]:
+#         vmaas_modules.append({"module_name": module["name"], "module_stream": module["stream"]})
+#     if vmaas_modules:
+#         vmaas_json["modules_list"] = vmaas_modules
+#     if releasever := system_profile["results"][0].get("rhsm", {}).get("version"):
+#         vmaas_json["releasever"] = releasever
+#     return vmaas_json

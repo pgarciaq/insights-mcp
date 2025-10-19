@@ -44,3 +44,8 @@
 
 ## rbac
 - `get_all_access`: Get access information for all Red Hat insights applications.
+
+## costmanagement
+- `get_openapi`: Get Red Hat Lightspeed cost management OpenAPI specification in JSON format.
+- `get_openshift_costs_by_cluster`: Get cost per cluster for one or more clusters for a period of t…
+- `get_openshift_clusters`: Get list of OpenShift clusters available in Cost Management.
