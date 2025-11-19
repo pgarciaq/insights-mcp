@@ -126,7 +126,18 @@ class ImageBuilderMCP(InsightsMCP):
             self.logger.info("Getting openapi")
             openapi = json.loads(self.get_openapi_synchronous())
 
+            deprecated_image_types = [
+                "edge-commit",
+                "edge-installer",
+                "rhel-edge-commit",
+                "rhel-edge-installer",
+            ]
+
             image_types = list(openapi["components"]["schemas"]["ImageTypes"]["enum"])
+
+            # remove deprecated image types - TBD remove or mark as deprecated in the openapi spec
+            image_types = [image_type for image_type in image_types if image_type not in deprecated_image_types]
+
             image_types.sort()
 
             architectures = list(openapi["components"]["schemas"]["ImageRequest"]["properties"]["architecture"]["enum"])
@@ -286,6 +297,9 @@ class ImageBuilderMCP(InsightsMCP):
         # avoid crashing the server so we'll stick to the broad exception catch
         except Exception as e:  # pylint: disable=broad-exception-caught
             return f"Error: {str(e)} in blueprint_compose {blueprint_uuid}"
+
+        if isinstance(response, str):
+            return response
 
         response_str = "[INSTRUCTION] Use the tool get_compose_details to get the details of the compose\n"
         response_str += "like the current build status\n"
